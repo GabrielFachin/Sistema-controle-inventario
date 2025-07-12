@@ -144,7 +144,7 @@ class Inventario:
     def obter_vendas_agrupadas(self):
         """Retorna vendas agrupadas por venda_id"""
         if self.df_vendas.empty:
-            return pd.DataFrame()
+            return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
         
         vendas_agrupadas = self.df_vendas.groupby(['data', 'venda_id']).agg({
             'produto': lambda x: ', '.join(x) if len(x) > 1 else x.iloc[0],
