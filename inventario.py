@@ -94,13 +94,14 @@ class Inventario:
         
         # Registra cada item da venda
         for item in self.carrinho:
-            self.df_vendas.loc[len(self.df_vendas)] = [
-                data_venda,
-                item['produto'],
-                item['quantidade'],
-                item['lucro'],
-                venda_id
-            ]
+            nova_venda = {
+                "data": data_venda,
+                "produto": item['produto'],
+                "quantidade": item['quantidade'],
+                "lucro": item['lucro'],
+                "venda_id": venda_id
+            }
+            self.df_vendas = pd.concat([self.df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
             
             # Atualiza estoque
             self.df_produtos.at[item['produto'], "estoque"] -= item['quantidade']
@@ -130,13 +131,14 @@ class Inventario:
         # Gera ID único para a venda
         venda_id = str(uuid.uuid4())[:8]
         
-        self.df_vendas.loc[len(self.df_vendas)] = [
-            datetime.today().strftime("%d/%m/%Y"),
-            nome_produto,
-            quantidade,
-            lucro,
-            venda_id
-        ]
+        nova_venda = {
+            "data": datetime.today().strftime("%d/%m/%Y"),
+            "produto": nome_produto,
+            "quantidade": quantidade,
+            "lucro": lucro,
+            "venda_id": venda_id
+        }
+        self.df_vendas = pd.concat([self.df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
         
         self.df_produtos.at[nome_produto, "estoque"] -= quantidade
         return venda_id, lucro
@@ -146,24 +148,41 @@ class Inventario:
         if self.df_vendas.empty:
             return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
         
-        vendas_agrupadas = self.df_vendas.groupby(['data', 'venda_id']).agg({
+        # Cria uma cópia do DataFrame para evitar alterações no original
+        df_temp = self.df_vendas.copy()
+        
+        # Agrupa por data e venda_id
+        vendas_agrupadas = df_temp.groupby(['data', 'venda_id']).agg({
             'produto': lambda x: ', '.join(x) if len(x) > 1 else x.iloc[0],
             'quantidade': 'sum',
             'lucro': 'sum'
         }).reset_index()
         
-        # Verifica se o DataFrame não está vazio antes de ordenar
-        if not vendas_agrupadas.empty:
-            return vendas_agrupadas.sort_values('data', ascending=False)
-        else:
-            return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
+        # Reordena as colunas para manter a ordem esperada
+        vendas_agrupadas = vendas_agrupadas[['data', 'venda_id', 'produto', 'quantidade', 'lucro']]
+        
+        # Ordena por data (converte para datetime para ordenação correta)
+        try:
+            vendas_agrupadas['data_sort'] = pd.to_datetime(vendas_agrupadas['data'], format='%d/%m/%Y')
+            vendas_agrupadas = vendas_agrupadas.sort_values('data_sort', ascending=False)
+            vendas_agrupadas = vendas_agrupadas.drop('data_sort', axis=1)
+        except:
+            # Se falhar na conversão, ordena como string
+            vendas_agrupadas = vendas_agrupadas.sort_values('data', ascending=False)
+        
+        return vendas_agrupadas
     
     def obter_detalhes_venda(self, venda_id):
         """Retorna os detalhes de uma venda específica"""
+        if self.df_vendas.empty:
+            return pd.DataFrame(columns=["data", "produto", "quantidade", "lucro", "venda_id"])
         return self.df_vendas[self.df_vendas['venda_id'] == venda_id]
     
     def filtrar_vendas_por_data(self, dia=None, mes=None, ano=None, produto=None):
         """Filtra vendas por data e produto"""
+        if self.df_vendas.empty:
+            return pd.DataFrame(columns=["data", "produto", "quantidade", "lucro", "venda_id"])
+            
         df = self.df_vendas.copy()
         
         if ano:
