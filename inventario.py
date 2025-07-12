@@ -141,22 +141,22 @@ class Inventario:
         self.df_produtos.at[nome_produto, "estoque"] -= quantidade
         return venda_id, lucro
     
-def obter_vendas_agrupadas(self):
-    """Retorna vendas agrupadas por venda_id"""
-    if self.df_vendas.empty:
-        return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
-    
-    vendas_agrupadas = self.df_vendas.groupby(['data', 'venda_id']).agg({
-        'produto': lambda x: ', '.join(x) if len(x) > 1 else x.iloc[0],
-        'quantidade': 'sum',
-        'lucro': 'sum'
-    }).reset_index()
-    
-    # Verifica se o DataFrame não está vazio antes de ordenar
-    if not vendas_agrupadas.empty:
-        return vendas_agrupadas.sort_values('data', ascending=False)
-    else:
-        return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
+    def obter_vendas_agrupadas(self):
+        """Retorna vendas agrupadas por venda_id"""
+        if self.df_vendas.empty:
+            return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
+        
+        vendas_agrupadas = self.df_vendas.groupby(['data', 'venda_id']).agg({
+            'produto': lambda x: ', '.join(x) if len(x) > 1 else x.iloc[0],
+            'quantidade': 'sum',
+            'lucro': 'sum'
+        }).reset_index()
+        
+        # Verifica se o DataFrame não está vazio antes de ordenar
+        if not vendas_agrupadas.empty:
+            return vendas_agrupadas.sort_values('data', ascending=False)
+        else:
+            return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
     
     def obter_detalhes_venda(self, venda_id):
         """Retorna os detalhes de uma venda específica"""
