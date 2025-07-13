@@ -145,6 +145,7 @@ class Inventario:
     
     def obter_vendas_agrupadas(self):
         """Retorna vendas agrupadas por venda_id"""
+        # Retorna DataFrame vazio com estrutura correta se não há vendas
         if self.df_vendas.empty:
             return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
         
@@ -157,9 +158,6 @@ class Inventario:
             'quantidade': 'sum',
             'lucro': 'sum'
         }).reset_index()
-        
-        # Reordena as colunas para manter a ordem esperada
-        vendas_agrupadas = vendas_agrupadas[['data', 'venda_id', 'produto', 'quantidade', 'lucro']]
         
         # Ordena por data (converte para datetime para ordenação correta)
         try:

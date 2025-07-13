@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from inventario import Inventario
 from financeiro import Financeiro
 from datetime import datetime
+import pandas as pd
 import excel_io
 
 inventario = Inventario()
