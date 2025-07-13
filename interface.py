@@ -21,9 +21,6 @@ def iniciar_interface():
     inventario.df_vendas = df_vendas
     financeiro.df_financeiro = df_financeiro
 
-    # Inicializa o dia atual no financeiro (se não existir)
-    financeiro._inicializar_dia_atual()
-
     aba = ttk.Notebook(root)
     aba.pack(fill="both", expand=True)
 
@@ -69,12 +66,12 @@ def iniciar_interface():
             desconto = float(entry_desconto.get() or 0) / 100
             
             if var_tipo_venda.get() == "simples":
-                venda_id, valor_venda = inventario.registrar_venda(produto, qtd, desconto)
-                messagebox.showinfo("Sucesso", f"Venda registrada! Valor: R${valor_venda:.2f}")
+                venda_id, lucro = inventario.registrar_venda(produto, qtd, desconto)
+                messagebox.showinfo("Sucesso", f"Venda registrada! Lucro: R${lucro:.2f}")
                 atualizar_tree_vendas_dia()
                 atualizar_tabela_produtos()
                 # Atualiza financeiro
-                financeiro.adicionar_entrada(f"Venda - {produto}", valor_venda)
+                financeiro.adicionar_entrada(f"Venda - {produto}", lucro)
                 atualizar_tree_financeiro()
             else:
                 item = inventario.adicionar_ao_carrinho(produto, qtd, desconto)
@@ -117,13 +114,13 @@ def iniciar_interface():
             return
         
         try:
-            venda_id, valor_total = inventario.finalizar_venda_carrinho()
-            messagebox.showinfo("Sucesso", f"Venda finalizada! Valor total: R${valor_total:.2f}")
+            venda_id, lucro_total = inventario.finalizar_venda_carrinho()
+            messagebox.showinfo("Sucesso", f"Venda finalizada! Lucro total: R${lucro_total:.2f}")
             atualizar_tree_carrinho()
             atualizar_tree_vendas_dia()
             atualizar_tabela_produtos()
             # Atualiza financeiro
-            financeiro.adicionar_entrada(f"Venda em pacote - ID: {venda_id}", valor_total)
+            financeiro.adicionar_entrada(f"Venda em pacote - ID: {venda_id}", lucro_total)
             atualizar_tree_financeiro()
         except Exception as e:
             messagebox.showerror("Erro", str(e))
@@ -144,20 +141,20 @@ def iniciar_interface():
                 item['quantidade'],
                 f"{item['desconto']*100:.1f}%",
                 f"R${item['preco_com_desconto']:.2f}",
-                f"R${item['valor_total']:.2f}"
+                f"R${item['total_item']:.2f}"
             ))
-            total += item['valor_total']
+            total += item['total_item']
         lbl_total_carrinho.config(text=f"Total: R${total:.2f}")
 
     # Frame vendas do dia
     frame_vendas_dia = ttk.LabelFrame(aba_vendas, text="Vendas do Dia")
     frame_vendas_dia.pack(padx=10, pady=5, fill="both", expand=True)
 
-    tree_vendas_dia = ttk.Treeview(frame_vendas_dia, columns=("data", "produto", "quantidade", "valor", "venda_id"), show="headings")
+    tree_vendas_dia = ttk.Treeview(frame_vendas_dia, columns=("data", "produto", "quantidade", "lucro", "venda_id"), show="headings")
     tree_vendas_dia.heading("data", text="Data")
     tree_vendas_dia.heading("produto", text="Produto(s)")
     tree_vendas_dia.heading("quantidade", text="Qtd Total")
-    tree_vendas_dia.heading("valor", text="Valor")
+    tree_vendas_dia.heading("lucro", text="Lucro")
     tree_vendas_dia.heading("venda_id", text="ID Venda")
     tree_vendas_dia.pack(fill="both", expand=True)
 
@@ -174,7 +171,7 @@ def iniciar_interface():
                     row["data"], 
                     row["produto"], 
                     row["quantidade"], 
-                    f"R${row['valor_venda']:.2f}",
+                    f"R${row['lucro']:.2f}",
                     row["venda_id"]
                 ))
 
@@ -358,7 +355,7 @@ def iniciar_interface():
     tk.Button(frame_filtros_fin, text="Resumo Mensal", command=mostrar_resumo_mensal).grid(row=0, column=5, padx=5)
     tk.Button(frame_filtros_fin, text="Resumo Anual", command=mostrar_resumo_anual).grid(row=0, column=6, padx=5)
 
-    # --- ABA HISTÓRICO ---
+    # --- ABA HISTÓRICO (Atualizada) ---
     frame_filtro = ttk.LabelFrame(aba_historico, text="Filtrar Vendas")
     frame_filtro.pack(padx=10, pady=10, fill="x")
 
@@ -411,7 +408,7 @@ def iniciar_interface():
                     row["data"], 
                     row["produto"], 
                     row["quantidade"], 
-                    f"R${row['valor_venda']:.2f}",
+                    f"R${row['lucro']:.2f}",
                     row["venda_id"]
                 ))
 
@@ -429,11 +426,11 @@ def iniciar_interface():
     frame_vendas = ttk.LabelFrame(aba_historico, text="Vendas")
     frame_vendas.pack(padx=10, pady=10, fill="both", expand=True)
 
-    tree_vendas = ttk.Treeview(frame_vendas, columns=("data", "produto", "quantidade", "valor", "venda_id"), show="headings")
+    tree_vendas = ttk.Treeview(frame_vendas, columns=("data", "produto", "quantidade", "lucro", "venda_id"), show="headings")
     tree_vendas.heading("data", text="Data")
     tree_vendas.heading("produto", text="Produto(s)")
     tree_vendas.heading("quantidade", text="Qtd Total")
-    tree_vendas.heading("valor", text="Valor")
+    tree_vendas.heading("lucro", text="Lucro")
     tree_vendas.heading("venda_id", text="ID Venda")
     tree_vendas.pack(fill="both", expand=True)
 
@@ -451,17 +448,17 @@ def iniciar_interface():
         
         detalhes = inventario.obter_detalhes_venda(venda_id)
         
-        tree_detalhes_venda = ttk.Treeview(popup, columns=("produto", "quantidade", "valor"), show="headings")
+        tree_detalhes_venda = ttk.Treeview(popup, columns=("produto", "quantidade", "lucro"), show="headings")
         tree_detalhes_venda.heading("produto", text="Produto")
         tree_detalhes_venda.heading("quantidade", text="Quantidade")
-        tree_detalhes_venda.heading("valor", text="Valor")
+        tree_detalhes_venda.heading("lucro", text="Lucro")
         tree_detalhes_venda.pack(fill="both", expand=True)
         
         for _, row in detalhes.iterrows():
             tree_detalhes_venda.insert("", tk.END, values=(
                 row["produto"], 
                 row["quantidade"], 
-                f"R${row['valor_venda']:.2f}"
+                f"R${row['lucro']:.2f}"
             ))
 
     tree_vendas.bind("<Double-1>", lambda e: mostrar_detalhes_venda())
@@ -529,37 +526,33 @@ def iniciar_interface():
     def abrir_popup_novo_produto():
         popup = tk.Toplevel(root)
         popup.title("Adicionar Novo Produto")
-        popup.geometry("400x250")
+        popup.geometry("400x200")
 
         tk.Label(popup, text="Nome:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
         tk.Label(popup, text="Estoque:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-        tk.Label(popup, text="Custo:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
-        tk.Label(popup, text="Preço:").grid(row=3, column=0, sticky="e", padx=5, pady=5)
+        tk.Label(popup, text="Preço:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
 
         e_nome = tk.Entry(popup, font=("Arial", 12))
         e_estoque = tk.Entry(popup, font=("Arial", 12))
-        e_custo = tk.Entry(popup, font=("Arial", 12))
         e_preco = tk.Entry(popup, font=("Arial", 12))
 
         e_nome.grid(row=0, column=1, padx=5, pady=5)
         e_estoque.grid(row=1, column=1, padx=5, pady=5)
-        e_custo.grid(row=2, column=1, padx=5, pady=5)
-        e_preco.grid(row=3, column=1, padx=5, pady=5)
+        e_preco.grid(row=2, column=1, padx=5, pady=5)
 
         def confirmar():
             try:
                 nome = e_nome.get()
                 estoque = int(e_estoque.get())
-                custo = float(e_custo.get())
                 preco = float(e_preco.get())
-                inventario.adicionar_produto(nome, preco, custo, estoque)
+                inventario.adicionar_produto(nome, preco, estoque)
                 popup.destroy()
                 atualizar_tabela_produtos()
                 atualizar_tree_vendas_dia()
             except Exception as e:
                 messagebox.showerror("Erro", str(e))
 
-        tk.Button(popup, text="Confirmar", font=("Arial", 12), command=confirmar).grid(row=4, column=0, columnspan=2, pady=10)
+        tk.Button(popup, text="Confirmar", font=("Arial", 12), command=confirmar).grid(row=3, column=0, columnspan=2, pady=10)
 
     def abrir_popup_editar_produto():
         selecionado = tree_produtos.selection()
@@ -573,27 +566,22 @@ def iniciar_interface():
         tk.Label(popup, text=f"Produto: {nome.upper()}").grid(row=0, column=0, columnspan=2, pady=(5,10))
 
         tk.Label(popup, text="Novo preço:").grid(row=1, column=0, sticky="e")
-        tk.Label(popup, text="Novo custo:").grid(row=2, column=0, sticky="e")
-        tk.Label(popup, text="Ajustar estoque (+/-):").grid(row=3, column=0, sticky="e")
+        tk.Label(popup, text="Ajustar estoque (+/-):").grid(row=2, column=0, sticky="e")
 
         e_preco = tk.Entry(popup)
-        e_custo = tk.Entry(popup)
         e_ajuste = tk.Entry(popup)
 
         e_preco.grid(row=1, column=1, padx=5, pady=2)
-        e_custo.grid(row=2, column=1, padx=5, pady=2)
-        e_ajuste.grid(row=3, column=1, padx=5, pady=2)
+        e_ajuste.grid(row=2, column=1, padx=5, pady=2)
 
         def confirmar():
             try:
                 preco = e_preco.get()
-                custo = e_custo.get()
                 ajuste = e_ajuste.get()
 
                 inventario.editar_produto(
                     nome,
-                    float(preco) if preco else None,
-                    float(custo) if custo else None
+                    float(preco) if preco else None
                 )
                 if ajuste:
                     inventario.alterar_estoque(nome, int(ajuste))
@@ -604,8 +592,8 @@ def iniciar_interface():
             except Exception as e:
                 messagebox.showerror("Erro", str(e))
 
-        tk.Button(popup, text="Salvar", command=confirmar).grid(row=4, column=0, pady=10)
-        tk.Button(popup, text="Cancelar", command=popup.destroy).grid(row=4, column=1, pady=10)
+        tk.Button(popup, text="Salvar", command=confirmar).grid(row=3, column=0, pady=10)
+        tk.Button(popup, text="Cancelar", command=popup.destroy).grid(row=3, column=1, pady=10)
 
     def remover_produto():
         selecionado = tree_produtos.selection()
