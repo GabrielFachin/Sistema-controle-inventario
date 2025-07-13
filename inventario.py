@@ -4,24 +4,25 @@ import uuid
 
 class Inventario:
     def __init__(self):
-        self.df_produtos = pd.DataFrame(columns=["preco", "custo", "estoque"])
-        self.df_vendas = pd.DataFrame(columns=["data", "produto", "quantidade", "lucro", "venda_id"])
+        self.df_produtos = pd.DataFrame(columns=["preco", "estoque"])  # Removido "custo"
+        self.df_vendas = pd.DataFrame(columns=["data", "produto", "quantidade", "valor_venda", "venda_id"])  # Alterado "lucro" para "valor_venda"
         self.carrinho = []  # Para vendas em pacote
     
-    def adicionar_produto(self, nome, preco, custo, estoque):
+    def adicionar_produto(self, nome, preco, estoque):
+        """Adiciona novo produto (sem custo)"""
         if nome in self.df_produtos.index:
             raise Exception("Produto já cadastrado.")
-        self.df_produtos.loc[nome] = [preco, custo, estoque]
+        self.df_produtos.loc[nome] = [preco, estoque]
     
-    def editar_produto(self, nome, novo_preco=None, novo_custo=None):
+    def editar_produto(self, nome, novo_preco=None):
+        """Edita produto (apenas preço)"""
         if nome not in self.df_produtos.index:
             raise Exception("Produto não encontrado.")
         if novo_preco is not None:
             self.df_produtos.at[nome, "preco"] = novo_preco
-        if novo_custo is not None:
-            self.df_produtos.at[nome, "custo"] = novo_custo
     
     def alterar_estoque(self, nome, ajuste):
+        """Altera estoque do produto"""
         if nome not in self.df_produtos.index:
             raise Exception("Produto não encontrado.")
         self.df_produtos.at[nome, "estoque"] += ajuste
@@ -29,6 +30,7 @@ class Inventario:
             raise Exception("Estoque não pode ser negativo.")
     
     def remover_produto(self, nome):
+        """Remove produto do inventário"""
         if nome not in self.df_produtos.index:
             raise Exception("Produto não encontrado.")
         self.df_produtos.drop(nome, inplace=True)
@@ -47,9 +49,8 @@ class Inventario:
             raise Exception("Estoque insuficiente.")
         
         preco = self.df_produtos.at[nome_produto, "preco"]
-        custo = self.df_produtos.at[nome_produto, "custo"]
         preco_com_desconto = preco * (1 - desconto)
-        lucro = (preco_com_desconto - custo) * quantidade
+        valor_total = preco_com_desconto * quantidade
         
         item = {
             'produto': nome_produto,
@@ -57,8 +58,7 @@ class Inventario:
             'desconto': desconto,
             'preco_unitario': preco,
             'preco_com_desconto': preco_com_desconto,
-            'lucro': lucro,
-            'total_item': preco_com_desconto * quantidade
+            'valor_total': valor_total
         }
         
         self.carrinho.append(item)
@@ -77,11 +77,7 @@ class Inventario:
     
     def obter_total_carrinho(self):
         """Retorna o total do carrinho"""
-        return sum(item['total_item'] for item in self.carrinho)
-    
-    def obter_lucro_carrinho(self):
-        """Retorna o lucro total do carrinho"""
-        return sum(item['lucro'] for item in self.carrinho)
+        return sum(item['valor_total'] for item in self.carrinho)
     
     def finalizar_venda_carrinho(self):
         """Finaliza a venda do carrinho"""
@@ -92,30 +88,32 @@ class Inventario:
         venda_id = str(uuid.uuid4())[:8]
         data_venda = datetime.today().strftime("%d/%m/%Y")
         
+        # Valor total da venda
+        valor_total_venda = 0
+        
         # Registra cada item da venda
         for item in self.carrinho:
             nova_venda = {
                 "data": data_venda,
                 "produto": item['produto'],
                 "quantidade": item['quantidade'],
-                "lucro": item['lucro'],
+                "valor_venda": item['valor_total'],
                 "venda_id": venda_id
             }
             self.df_vendas = pd.concat([self.df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
             
             # Atualiza estoque
             self.df_produtos.at[item['produto'], "estoque"] -= item['quantidade']
-        
-        # Calcula lucro total da venda
-        lucro_total = self.obter_lucro_carrinho()
+            
+            valor_total_venda += item['valor_total']
         
         # Limpa carrinho
         self.limpar_carrinho()
         
-        return venda_id, lucro_total
+        return venda_id, valor_total_venda
     
     def registrar_venda(self, nome_produto, quantidade, desconto=0):
-        """Registra uma venda simples (mantém compatibilidade)"""
+        """Registra uma venda simples"""
         if nome_produto not in self.df_produtos.index:
             raise Exception("Produto não cadastrado.")
         
@@ -124,9 +122,8 @@ class Inventario:
             raise Exception("Estoque insuficiente.")
         
         preco = self.df_produtos.at[nome_produto, "preco"]
-        custo = self.df_produtos.at[nome_produto, "custo"]
         preco_com_desconto = preco * (1 - desconto)
-        lucro = (preco_com_desconto - custo) * quantidade
+        valor_venda = preco_com_desconto * quantidade
         
         # Gera ID único para a venda
         venda_id = str(uuid.uuid4())[:8]
@@ -135,19 +132,19 @@ class Inventario:
             "data": datetime.today().strftime("%d/%m/%Y"),
             "produto": nome_produto,
             "quantidade": quantidade,
-            "lucro": lucro,
+            "valor_venda": valor_venda,
             "venda_id": venda_id
         }
         self.df_vendas = pd.concat([self.df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
         
         self.df_produtos.at[nome_produto, "estoque"] -= quantidade
-        return venda_id, lucro
+        return venda_id, valor_venda
     
     def obter_vendas_agrupadas(self):
         """Retorna vendas agrupadas por venda_id"""
         # Retorna DataFrame vazio com estrutura correta se não há vendas
         if self.df_vendas.empty:
-            return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
+            return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "valor_venda"])
         
         # Cria uma cópia do DataFrame para evitar alterações no original
         df_temp = self.df_vendas.copy()
@@ -156,7 +153,7 @@ class Inventario:
         vendas_agrupadas = df_temp.groupby(['data', 'venda_id']).agg({
             'produto': lambda x: ', '.join(x) if len(x) > 1 else x.iloc[0],
             'quantidade': 'sum',
-            'lucro': 'sum'
+            'valor_venda': 'sum'
         }).reset_index()
         
         # Ordena por data (converte para datetime para ordenação correta)
@@ -173,13 +170,13 @@ class Inventario:
     def obter_detalhes_venda(self, venda_id):
         """Retorna os detalhes de uma venda específica"""
         if self.df_vendas.empty:
-            return pd.DataFrame(columns=["data", "produto", "quantidade", "lucro", "venda_id"])
+            return pd.DataFrame(columns=["data", "produto", "quantidade", "valor_venda", "venda_id"])
         return self.df_vendas[self.df_vendas['venda_id'] == venda_id]
     
     def filtrar_vendas_por_data(self, dia=None, mes=None, ano=None, produto=None):
         """Filtra vendas por data e produto"""
         if self.df_vendas.empty:
-            return pd.DataFrame(columns=["data", "produto", "quantidade", "lucro", "venda_id"])
+            return pd.DataFrame(columns=["data", "produto", "quantidade", "valor_venda", "venda_id"])
             
         df = self.df_vendas.copy()
         

@@ -4,7 +4,20 @@ from datetime import datetime
 class Financeiro:
     def __init__(self):
         self.df_financeiro = pd.DataFrame(columns=["data", "tipo", "descricao", "valor"])
+        self._inicializar_dia_atual()
         
+    def _inicializar_dia_atual(self):
+        """Inicializa o dia atual com saldo 0 se não existir"""
+        hoje = datetime.today().strftime("%d/%m/%Y")
+        if self.df_financeiro.empty or not (self.df_financeiro["data"] == hoje).any():
+            entrada_inicial = {
+                "data": hoje,
+                "tipo": "entrada",
+                "descricao": "Saldo inicial do dia",
+                "valor": 0
+            }
+            self.df_financeiro = pd.concat([self.df_financeiro, pd.DataFrame([entrada_inicial])], ignore_index=True)
+    
     def adicionar_entrada(self, descricao, valor, data=None):
         """Adiciona uma entrada de receita"""
         if data is None:
@@ -41,6 +54,9 @@ class Financeiro:
         if self.df_financeiro.empty:
             return pd.DataFrame(columns=["data", "total"])
         
+        # Garantir que o dia atual está inicializado
+        self._inicializar_dia_atual()
+        
         resumo = self.df_financeiro.groupby("data")["valor"].sum().reset_index()
         resumo.columns = ["data", "total"]
         resumo = resumo.sort_values("data", ascending=False)
@@ -49,6 +65,9 @@ class Financeiro:
     def obter_detalhes_dia(self, data):
         """Retorna os detalhes de movimentação de um dia específico"""
         detalhes = self.df_financeiro[self.df_financeiro["data"] == data].copy()
+        # Filtra o saldo inicial se for 0 e houver outras movimentações
+        if len(detalhes) > 1:
+            detalhes = detalhes[~((detalhes["descricao"] == "Saldo inicial do dia") & (detalhes["valor"] == 0))]
         return detalhes.sort_values("tipo", ascending=False)  # Entradas primeiro
     
     def obter_resumo_mensal(self, mes=None, ano=None):
