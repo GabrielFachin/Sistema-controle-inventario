@@ -188,14 +188,19 @@ def iniciar_interface():
     def atualizar_tree_financeiro():
         tree_financeiro.delete(*tree_financeiro.get_children())
         resumo = financeiro.obter_resumo_diario()
-        
+
+        # Adiciona o dia atual com total 0 se não existir
+        hoje_str = datetime.today().strftime("%d/%m/%Y")
+        if resumo.empty or hoje_str not in resumo["data"].values:
+            resumo = pd.concat([resumo, pd.DataFrame([{"data": hoje_str, "total": 0.0}])], ignore_index=True)
+
         for _, row in resumo.iterrows():
             valor = row["total"]
             cor = "green" if valor >= 0 else "red"
             item = tree_financeiro.insert("", tk.END, values=(row["data"], f"R${valor:.2f}"))
             tree_financeiro.set(item, "total", f"R${valor:.2f}")
             tree_financeiro.item(item, tags=(cor,))
-        
+
         tree_financeiro.tag_configure("green", foreground="green")
         tree_financeiro.tag_configure("red", foreground="red")
 
