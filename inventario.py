@@ -4,9 +4,9 @@ import uuid
 
 class Inventario:
     def __init__(self):
-        self.df_produtos = pd.DataFrame(columns=["preco", "estoque"])  # Removido "custo"
-        self.df_vendas = pd.DataFrame(columns=["data", "produto", "quantidade", "valor_venda", "venda_id"])  # Alterado "lucro" para "valor_venda"
-        self.carrinho = []  # Para vendas em pacote
+        self.df_produtos = pd.DataFrame(columns=["preco", "estoque"])
+        self.df_vendas = pd.DataFrame(columns=["data", "produto", "quantidade", "valor_venda", "venda_id"])
+        self.carrinho = []
     
     def adicionar_produto(self, nome, preco, estoque):
         """Adiciona novo produto (sem custo)"""
@@ -50,7 +50,7 @@ class Inventario:
         
         preco = self.df_produtos.at[nome_produto, "preco"]
         preco_com_desconto = preco * (1 - desconto)
-        valor_total = preco_com_desconto * quantidade
+        total_item = preco_com_desconto * quantidade
         
         item = {
             'produto': nome_produto,
@@ -58,7 +58,7 @@ class Inventario:
             'desconto': desconto,
             'preco_unitario': preco,
             'preco_com_desconto': preco_com_desconto,
-            'valor_total': valor_total
+            'total_item': total_item  # Mudança aqui para consistência
         }
         
         self.carrinho.append(item)
@@ -77,7 +77,7 @@ class Inventario:
     
     def obter_total_carrinho(self):
         """Retorna o total do carrinho"""
-        return sum(item['valor_total'] for item in self.carrinho)
+        return sum(item['total_item'] for item in self.carrinho)
     
     def finalizar_venda_carrinho(self):
         """Finaliza a venda do carrinho"""
@@ -97,15 +97,16 @@ class Inventario:
                 "data": data_venda,
                 "produto": item['produto'],
                 "quantidade": item['quantidade'],
-                "valor_venda": item['valor_total'],
+                "valor_venda": item['total_item'],  # Mudança aqui para consistência
                 "venda_id": venda_id
             }
+            # Ensure DataFrame columns match
             self.df_vendas = pd.concat([self.df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
             
             # Atualiza estoque
             self.df_produtos.at[item['produto'], "estoque"] -= item['quantidade']
             
-            valor_total_venda += item['valor_total']
+            valor_total_venda += item['total_item']
         
         # Limpa carrinho
         self.limpar_carrinho()
@@ -144,7 +145,7 @@ class Inventario:
         """Retorna vendas agrupadas por venda_id"""
         # Retorna DataFrame vazio com estrutura correta se não há vendas
         if self.df_vendas.empty:
-            return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "valor_venda"])
+            return pd.DataFrame(columns=["data", "venda_id", "produto", "quantidade", "lucro"])
         
         # Cria uma cópia do DataFrame para evitar alterações no original
         df_temp = self.df_vendas.copy()
@@ -155,6 +156,9 @@ class Inventario:
             'quantidade': 'sum',
             'valor_venda': 'sum'
         }).reset_index()
+        
+        # Renomeia a coluna para compatibilidade com a interface
+        vendas_agrupadas = vendas_agrupadas.rename(columns={'valor_venda': 'lucro'})
         
         # Ordena por data (converte para datetime para ordenação correta)
         try:
@@ -170,8 +174,12 @@ class Inventario:
     def obter_detalhes_venda(self, venda_id):
         """Retorna os detalhes de uma venda específica"""
         if self.df_vendas.empty:
-            return pd.DataFrame(columns=["data", "produto", "quantidade", "valor_venda", "venda_id"])
-        return self.df_vendas[self.df_vendas['venda_id'] == venda_id]
+            return pd.DataFrame(columns=["data", "produto", "quantidade", "lucro", "venda_id"])
+        
+        detalhes = self.df_vendas[self.df_vendas['venda_id'] == venda_id].copy()
+        # Renomeia a coluna para compatibilidade com a interface
+        detalhes = detalhes.rename(columns={'valor_venda': 'lucro'})
+        return detalhes
     
     def filtrar_vendas_por_data(self, dia=None, mes=None, ano=None, produto=None):
         """Filtra vendas por data e produto"""
