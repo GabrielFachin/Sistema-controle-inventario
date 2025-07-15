@@ -4,14 +4,14 @@ import shutil
 from datetime import datetime
 
 ARQUIVO_DADOS = "dados.xlsx"
-ARQUIVO_BACKUP = f"dados_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+ARQUIVO_BACKUP = "dados_backup.xlsx"  # Backup fixo
 
 def criar_backup():
-    """Cria backup do arquivo antes de modificar"""
+    """Cria backup do arquivo antes de modificar (overwrite)"""
     if os.path.exists(ARQUIVO_DADOS):
         try:
             shutil.copy2(ARQUIVO_DADOS, ARQUIVO_BACKUP)
-            print(f"Backup criado: {ARQUIVO_BACKUP}")
+            print(f"Backup sobrescrito: {ARQUIVO_BACKUP}")
         except Exception as e:
             print(f"Erro ao criar backup: {e}")
 
@@ -60,7 +60,7 @@ def carregar_dados():
             print(f"Erro ao carregar vendas: {e}")
             df_vendas = pd.DataFrame(columns=["data", "produto", "quantidade", "valor_venda", "venda_id"])
         
-        # Carrega financeiro (mantém compatibilidade com formato antigo)
+        # Carrega financeiro
         try:
             # Verifica se existe a planilha "Financeiro" ou "Gastos" (compatibilidade)
             try:
@@ -152,12 +152,6 @@ def salvar_dados(df_produtos, df_vendas, df_financeiro):
     except Exception as e:
         print(f"Erro ao salvar dados: {e}")
         raise e
-
-def salvar_dados_financeiro_separado(df_produtos, df_vendas, financeiro_obj):
-    """Salva dados usando o novo formato de financeiro separado"""
-    # Converte o objeto financeiro para o formato antigo para compatibilidade
-    df_financeiro_compativel = financeiro_obj.obter_dados_para_salvar()
-    salvar_dados(df_produtos, df_vendas, df_financeiro_compativel)
 
 def verificar_integridade():
     """Verifica a integridade do arquivo de dados"""

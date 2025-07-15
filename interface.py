@@ -176,189 +176,131 @@ def iniciar_interface():
                 ))
 
     # --- ABA FINANCEIRO ---
-    # Frame resumo diário
     frame_resumo = ttk.LabelFrame(aba_financeiro, text="Resumo Diário")
     frame_resumo.pack(padx=10, pady=5, fill="both", expand=True)
 
-    tree_financeiro = ttk.Treeview(frame_resumo, columns=("data", "total"), show="headings")
+    # Tree com scrollbar
+    tree_scroll = ttk.Scrollbar(frame_resumo)
+    tree_scroll.pack(side="right", fill="y")
+
+    tree_financeiro = ttk.Treeview(
+        frame_resumo,
+        columns=("data", "entrada", "saida", "total"),
+        show="tree headings",
+        yscrollcommand=tree_scroll.set
+    )
+    tree_scroll.config(command=tree_financeiro.yview)
+    
+    # Configure columns
+    tree_financeiro.heading("#0", text="")
     tree_financeiro.heading("data", text="Data")
-    tree_financeiro.heading("total", text="Resultado")
+    tree_financeiro.heading("entrada", text="Total Entradas")
+    tree_financeiro.heading("saida", text="Total Saídas")
+    tree_financeiro.heading("total", text="Total Geral")
+    
+    # Configure column widths
+    tree_financeiro.column("#0", width=30)
+    tree_financeiro.column("data", width=100)
+    tree_financeiro.column("entrada", width=150)
+    tree_financeiro.column("saida", width=150)
+    tree_financeiro.column("total", width=150)
+    
     tree_financeiro.pack(fill="both", expand=True)
 
     def atualizar_tree_financeiro():
         tree_financeiro.delete(*tree_financeiro.get_children())
-        resumo = financeiro.obter_resumo_diario()
+        resumo = financeiro.obter_resumo_diario_completo()
 
-        # Adiciona o dia atual com total 0 se não existir
         hoje_str = datetime.today().strftime("%d/%m/%Y")
         if resumo.empty or hoje_str not in resumo["data"].values:
-            resumo = pd.concat([resumo, pd.DataFrame([{"data": hoje_str, "total": 0.0}])], ignore_index=True)
+            resumo = pd.concat([resumo, pd.DataFrame([{
+                "data": hoje_str, "entrada": 0.0, "saida": 0.0, "total": 0.0
+            }])], ignore_index=True)
 
         for _, row in resumo.iterrows():
-            valor = row["total"]
-            cor = "green" if valor >= 0 else "red"
-            item = tree_financeiro.insert("", tk.END, values=(row["data"], f"R${valor:.2f}"))
-            tree_financeiro.set(item, "total", f"R${valor:.2f}")
-            tree_financeiro.item(item, tags=(cor,))
+            # Inserir linha principal com totais
+            parent = tree_financeiro.insert(
+                "", "end",
+                values=(
+                    row["data"],
+                    f"R${row['entrada']:.2f}",
+                    f"R${abs(row['saida']):.2f}",
+                    f"R${row['total']:.2f}"
+                ),
+                tags=('day',)
+            )
 
-        tree_financeiro.tag_configure("green", foreground="green")
-        tree_financeiro.tag_configure("red", foreground="red")
+            # Buscar detalhes do dia
+            detalhes = financeiro.obter_detalhes_dia(row["data"])
+            
+            # Inserir entradas
+            entradas = detalhes[detalhes["tipo"] == "entrada"]
+            if not entradas.empty:
+                entrada_header = tree_financeiro.insert(parent, "end", values=("", "ENTRADAS", "", ""), tags=('header',))
+                for _, ent in entradas.iterrows():
+                    if ent['descricao'] != "Saldo inicial do dia" or ent['valor'] != 0:
+                        tree_financeiro.insert(
+                            entrada_header, "end",
+                            values=("", ent['descricao'], "", f"R${ent['valor']:.2f}"),
+                            tags=('entrada',)
+                        )
 
-    def abrir_detalhes_dia():
-        selecionado = tree_financeiro.selection()
-        if not selecionado:
-            return
-        
-        item = tree_financeiro.item(selecionado[0])
-        data = item["values"][0]
-        
+            # Inserir saídas
+            saidas = detalhes[detalhes["tipo"] == "saida"]
+            if not saidas.empty:
+                saida_header = tree_financeiro.insert(parent, "end", values=("", "SAÍDAS", "", ""), tags=('header',))
+                for _, sai in saidas.iterrows():
+                    tree_financeiro.insert(
+                        saida_header, "end",
+                        values=("", sai['descricao'], "", f"R${abs(sai['valor']):.2f}"),
+                        tags=('saida',)
+                    )
+
+        # Configurar estilos
+        tree_financeiro.tag_configure('day', font=('Arial', 10, 'bold'))
+        tree_financeiro.tag_configure('header', font=('Arial', 9, 'bold'), background='#f0f0f0')
+        tree_financeiro.tag_configure('entrada', foreground='green')
+        tree_financeiro.tag_configure('saida', foreground='red')
+
+    # Frame para botão de nova despesa
+    frame_nova_despesa = ttk.Frame(aba_financeiro)
+    frame_nova_despesa.pack(padx=10, pady=5, fill="x")
+
+    def abrir_popup_nova_despesa():
         popup = tk.Toplevel(root)
-        popup.title(f"Detalhes - {data}")
-        popup.geometry("600x400")
+        popup.title("Lançar Nova Despesa")
+        popup.geometry("400x150")
         
-        # Verifica se pode adicionar despesas
-        hoje = datetime.today().strftime("%d/%m/%Y")
-        pode_adicionar = financeiro.pode_adicionar_despesa(data)
+        frame = ttk.LabelFrame(popup, text="Nova Despesa")
+        frame.pack(padx=10, pady=5, fill="x")
         
-        if pode_adicionar:
-            frame_nova_despesa = ttk.LabelFrame(popup, text="Nova Despesa")
-            frame_nova_despesa.pack(padx=10, pady=5, fill="x")
-            
-            tk.Label(frame_nova_despesa, text="Descrição:").grid(row=0, column=0)
-            tk.Label(frame_nova_despesa, text="Valor:").grid(row=0, column=2)
-            
-            entry_desc = tk.Entry(frame_nova_despesa, width=30)
-            entry_valor = tk.Entry(frame_nova_despesa, width=15)
-            
-            entry_desc.grid(row=0, column=1, padx=5)
-            entry_valor.grid(row=0, column=3, padx=5)
-            
-            def adicionar_despesa():
-                try:
-                    desc = entry_desc.get()
-                    valor = float(entry_valor.get())
-                    financeiro.adicionar_saida(desc, valor, data)
-                    entry_desc.delete(0, tk.END)
-                    entry_valor.delete(0, tk.END)
-                    atualizar_detalhes()
-                    atualizar_tree_financeiro()
-                except Exception as e:
-                    messagebox.showerror("Erro", str(e))
-            
-            tk.Button(frame_nova_despesa, text="Adicionar", command=adicionar_despesa).grid(row=0, column=4, padx=5)
+        tk.Label(frame, text="Descrição:").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(frame, text="Valor:").grid(row=1, column=0, padx=5, pady=5)
         
-        # Frame detalhes
-        frame_detalhes = ttk.LabelFrame(popup, text="Movimentações")
-        frame_detalhes.pack(padx=10, pady=5, fill="both", expand=True)
+        entry_desc = tk.Entry(frame, width=30)
+        entry_valor = tk.Entry(frame, width=15)
         
-        tree_detalhes = ttk.Treeview(frame_detalhes, columns=("tipo", "descricao", "valor"), show="headings")
-        tree_detalhes.heading("tipo", text="Tipo")
-        tree_detalhes.heading("descricao", text="Descrição")
-        tree_detalhes.heading("valor", text="Valor")
-        tree_detalhes.pack(fill="both", expand=True)
+        entry_desc.grid(row=0, column=1, padx=5, pady=5)
+        entry_valor.grid(row=1, column=1, padx=5, pady=5)
         
-        def atualizar_detalhes():
-            tree_detalhes.delete(*tree_detalhes.get_children())
-            detalhes = financeiro.obter_detalhes_dia(data)
-            
-            for _, row in detalhes.iterrows():
-                tipo = "Entrada" if row["tipo"] == "entrada" else "Saída"
-                cor = "green" if row["tipo"] == "entrada" else "red"
-                item = tree_detalhes.insert("", tk.END, values=(tipo, row["descricao"], f"R${abs(row['valor']):.2f}"))
-                tree_detalhes.item(item, tags=(cor,))
-            
-            tree_detalhes.tag_configure("green", foreground="green")
-            tree_detalhes.tag_configure("red", foreground="red")
+        def salvar_despesa():
+            try:
+                desc = entry_desc.get()
+                valor = float(entry_valor.get())
+                financeiro.adicionar_saida(desc, valor)
+                atualizar_tree_financeiro()
+                popup.destroy()
+            except Exception as e:
+                messagebox.showerror("Erro", str(e))
         
-        atualizar_detalhes()
+        tk.Button(frame, text="Salvar", command=salvar_despesa).grid(row=2, column=0, columnspan=2, pady=10)
 
-    tree_financeiro.bind("<Double-1>", lambda e: abrir_detalhes_dia())
-
-    # Frame filtros financeiro
-    frame_filtros_fin = ttk.LabelFrame(aba_financeiro, text="Filtros e Relatórios")
-    frame_filtros_fin.pack(padx=10, pady=5, fill="x")
-
-    tk.Label(frame_filtros_fin, text="Data início:").grid(row=0, column=0)
-    entry_data_inicio = tk.Entry(frame_filtros_fin, width=12)
-    entry_data_inicio.grid(row=0, column=1, padx=5)
-
-    tk.Label(frame_filtros_fin, text="Data fim:").grid(row=0, column=2)
-    entry_data_fim = tk.Entry(frame_filtros_fin, width=12)
-    entry_data_fim.grid(row=0, column=3, padx=5)
-
-    def filtrar_financeiro():
-        try:
-            data_inicio = entry_data_inicio.get() or None
-            data_fim = entry_data_fim.get() or None
-            
-            if data_inicio or data_fim:
-                resultado = financeiro.filtrar_por_periodo(data_inicio, data_fim)
-                popup_resultado = tk.Toplevel(root)
-                popup_resultado.title("Resultado do Filtro")
-                popup_resultado.geometry("600x400")
-                
-                tree_resultado = ttk.Treeview(popup_resultado, columns=("data", "tipo", "descricao", "valor"), show="headings")
-                tree_resultado.heading("data", text="Data")
-                tree_resultado.heading("tipo", text="Tipo")
-                tree_resultado.heading("descricao", text="Descrição")
-                tree_resultado.heading("valor", text="Valor")
-                tree_resultado.pack(fill="both", expand=True)
-                
-                for _, row in resultado.iterrows():
-                    tipo = "Entrada" if row["tipo"] == "entrada" else "Saída"
-                    cor = "green" if row["tipo"] == "entrada" else "red"
-                    item = tree_resultado.insert("", tk.END, values=(row["data"], tipo, row["descricao"], f"R${abs(row['valor']):.2f}"))
-                    tree_resultado.item(item, tags=(cor,))
-                
-                tree_resultado.tag_configure("green", foreground="green")
-                tree_resultado.tag_configure("red", foreground="red")
-                
-        except Exception as e:
-            messagebox.showerror("Erro", str(e))
-
-    def mostrar_resumo_mensal():
-        resumo = financeiro.obter_resumo_mensal()
-        popup_mensal = tk.Toplevel(root)
-        popup_mensal.title("Resumo Mensal")
-        popup_mensal.geometry("400x300")
-        
-        tree_mensal = ttk.Treeview(popup_mensal, columns=("mes", "total"), show="headings")
-        tree_mensal.heading("mes", text="Mês/Ano")
-        tree_mensal.heading("total", text="Total")
-        tree_mensal.pack(fill="both", expand=True)
-        
-        for _, row in resumo.iterrows():
-            valor = row["total"]
-            cor = "green" if valor >= 0 else "red"
-            item = tree_mensal.insert("", tk.END, values=(row["mes_ano"], f"R${valor:.2f}"))
-            tree_mensal.item(item, tags=(cor,))
-        
-        tree_mensal.tag_configure("green", foreground="green")
-        tree_mensal.tag_configure("red", foreground="red")
-
-    def mostrar_resumo_anual():
-        resumo = financeiro.obter_resumo_anual()
-        popup_anual = tk.Toplevel(root)
-        popup_anual.title("Resumo Anual")
-        popup_anual.geometry("400x300")
-        
-        tree_anual = ttk.Treeview(popup_anual, columns=("ano", "total"), show="headings")
-        tree_anual.heading("ano", text="Ano")
-        tree_anual.heading("total", text="Total")
-        tree_anual.pack(fill="both", expand=True)
-        
-        for _, row in resumo.iterrows():
-            valor = row["total"]
-            cor = "green" if valor >= 0 else "red"
-            item = tree_anual.insert("", tk.END, values=(row["ano"], f"R${valor:.2f}"))
-            tree_anual.item(item, tags=(cor,))
-        
-        tree_anual.tag_configure("green", foreground="green")
-        tree_anual.tag_configure("red", foreground="red")
-
-    tk.Button(frame_filtros_fin, text="Filtrar", command=filtrar_financeiro).grid(row=0, column=4, padx=5)
-    tk.Button(frame_filtros_fin, text="Resumo Mensal", command=mostrar_resumo_mensal).grid(row=0, column=5, padx=5)
-    tk.Button(frame_filtros_fin, text="Resumo Anual", command=mostrar_resumo_anual).grid(row=0, column=6, padx=5)
+    btn_nova_despesa = ttk.Button(
+        frame_nova_despesa, 
+        text="Lançar Nova Despesa", 
+        command=abrir_popup_nova_despesa
+    )
+    btn_nova_despesa.pack(side="left", padx=5)
 
     # --- ABA HISTÓRICO (Atualizada) ---
     frame_filtro = ttk.LabelFrame(aba_historico, text="Filtrar Vendas")
