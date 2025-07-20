@@ -267,11 +267,12 @@ def iniciar_interface():
     frame_nova_despesa.pack(padx=10, pady=5, fill="x")
 
     def abrir_popup_nova_despesa():
+        hoje_str = datetime.today().strftime("%d/%m/%Y")
         popup = tk.Toplevel(root)
-        popup.title("Lançar Nova Despesa")
+        popup.title(f"Lançar Nova Despesa - {hoje_str}")
         popup.geometry("400x150")
         
-        frame = ttk.LabelFrame(popup, text="Nova Despesa")
+        frame = ttk.LabelFrame(popup, text=f"Nova Despesa - {hoje_str}")
         frame.pack(padx=10, pady=5, fill="x")
         
         tk.Label(frame, text="Descrição:").grid(row=0, column=0, padx=5, pady=5)
